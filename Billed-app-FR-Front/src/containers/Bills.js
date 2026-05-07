@@ -1,5 +1,5 @@
-import { ROUTES_PATH } from '../constants/routes.js'
 import { formatDate, formatStatus } from "../app/format.js"
+import { ROUTES_PATH } from '../constants/routes.js'
 import Logout from "./Logout.js"
 
 export default class {
@@ -22,6 +22,13 @@ export default class {
 
   handleClickIconEye = (icon) => {
     const billUrl = icon.getAttribute("data-bill-url")
+    
+    // Ne pas afficher l'image si l'URL contient "/null"
+    if (billUrl && billUrl.includes('/null')) {
+      $('#modaleFile').find(".modal-body").html('')
+      return
+    }
+    
     const imgWidth = Math.floor($('#modaleFile').width() * 0.5)
     $('#modaleFile').find(".modal-body").html(`<div style='text-align: center;' class="bill-proof-container"><img width=${imgWidth} src=${billUrl} alt="Bill" /></div>`)
     $('#modaleFile').modal('show')
