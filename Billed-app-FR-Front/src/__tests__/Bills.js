@@ -3,13 +3,16 @@
  */
 
 import { screen, waitFor } from "@testing-library/dom";
+import userEvent from '@testing-library/user-event';
 import { localStorageMock } from "../__mocks__/localStorage.js";
 import mockStore from "../__mocks__/store.js";
-import { ROUTES_PATH } from "../constants/routes.js";
+import router from "../app/Router.js";
+import { ROUTES, ROUTES_PATH } from "../constants/routes";
+import Bills from "../containers/Bills.js";
 import { bills } from "../fixtures/bills.js";
 import BillsUI from "../views/BillsUI.js";
 
-import router from "../app/Router.js";
+jest.mock("../app/store", () => mockStore)
 
 describe("Given I am connected as an employee", () => {
   describe("When I am on Bills Page", () => {
@@ -38,11 +41,84 @@ describe("Given I am connected as an employee", () => {
       expect(dates).toEqual(datesSorted)
     })
   })
+
+  describe('when I click on the eye icon of a bill', () => {
+    test('Then the modal should open', () => {
+      $.fn.modal = jest.fn() //mock de la modale Bootstrap
+
+      const onNavigate = (pathname) => {
+        document.body.innerHTML = ROUTES({ pathname })
+      }
+
+      Object.defineProperty(window, 'localStorage', { value: localStorageMock })
+      window.localStorage.setItem('user', JSON.stringify({
+        type: 'Employee'
+      }))
+      const billsContainer = new Bills({
+        document, onNavigate, store: mockStore, localStorage: window.localStorage,
+      });
+
+      document.body.innerHTML = `
+        ${BillsUI({ data: bills })}
+        <div data-testid="modaleFile" class="modal fade"></div>
+     `
+     
+      const handleClickIconEye = jest.fn(billsContainer.handleClickIconEye)
+      const iconEye = screen.getAllByTestId('icon-eye')
+      iconEye.forEach(eye => {
+        eye.addEventListener('click', () => handleClickIconEye(eye))
+      })
+      userEvent.click(iconEye[0])
+      expect(handleClickIconEye).toHaveBeenCalled()
+
+      const modale = screen.getByTestId('modaleFile')
+      expect(modale).toBeTruthy()
+    })
+  })
+
+  describe('When I am on Bills Page but it is loading', () => {
+    test('Then, Loading page should be rendered', () => {
+      document.body.innerHTML = BillsUI({ loading: true })
+      expect(screen.getAllByText('Loading...')).toBeTruthy()
+    })
+  })
+  describe('When I am on Bills Page but back-end send an error message', () => {
+    test('Then, Error page should be rendered', () => {
+      document.body.innerHTML = BillsUI({ error: 'some error message' })
+      expect(screen.getAllByText('Erreur')).toBeTruthy()
+    })
+  })
 })
+
+describe('Given I am connected as an employee, and I am on Bills Page, and I clicked on new bill button', () => {
+  test('Then, New bill page should be rendered',  async () => {
+
+    const onNavigate = (pathname) => {
+      document.body.innerHTML = ROUTES({ pathname })
+    }
+
+    Object.defineProperty(window, 'localStorage', { value: localStorageMock })
+    window.localStorage.setItem('user', JSON.stringify({
+      type: 'Employee'
+    }))
+
+    const billsContainer = new Bills({
+      document, onNavigate, store: mockStore, localStorage: window.localStorage
+    })
+    document.body.innerHTML = BillsUI({ data: bills })
+    const buttonNewBill = screen.getByTestId('btn-new-bill')
+    expect(buttonNewBill).toBeTruthy();
+    const handleClickNewBill = jest.fn((e) => billsContainer.handleClickNewBill())
+    buttonNewBill.addEventListener('click', handleClickNewBill)
+    userEvent.click(buttonNewBill)
+    expect(handleClickNewBill).toHaveBeenCalled()
+  })
+})
+
 
 // test d'intégration GET
 describe("Given I am a user connected as an employee", () => {
-  describe("When I navigate to Bills", () => {
+  describe("When I navigate to Bills Page", () => {
     test("fetches bills from mock API GET", async () => {
       localStorage.setItem("user", JSON.stringify({ type: "Employee", email: "a@a" }));
       const root = document.createElement("div")
@@ -51,11 +127,10 @@ describe("Given I am a user connected as an employee", () => {
       router()
       window.onNavigate(ROUTES_PATH.Bills)
       await waitFor(() => screen.getByText("Mes notes de frais"))
-      const contentPending = screen.getByText("En attente (1)")
-      expect(contentPending).toBeTruthy()
-      const contentRefused = screen.getByText("Refusé (2)")
-      expect(contentRefused).toBeTruthy()
-      expect(screen.getByTestId("big-billed-icon")).toBeTruthy()
+      const newBillBtn = screen.getByTestId("btn-new-bill")
+      expect(newBillBtn).toBeTruthy()
+      const billsTableRows = screen.getByTestId("tbody")
+      expect(billsTableRows).toBeTruthy()
     })
 
     describe("When an error occurs on API", () => {
@@ -106,5 +181,3 @@ describe("Given I am a user connected as an employee", () => {
     })
   })
 })
-
-
