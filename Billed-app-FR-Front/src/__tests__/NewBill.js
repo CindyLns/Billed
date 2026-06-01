@@ -3,11 +3,14 @@
  */
 
 import { fireEvent, screen, waitFor } from "@testing-library/dom";
+import "@testing-library/jest-dom";
+import userEvent from "@testing-library/user-event";
 import { localStorageMock } from "../__mocks__/localStorage.js";
 import mockStore from "../__mocks__/store.js";
 import router from "../app/Router.js";
 import { ROUTES, ROUTES_PATH } from "../constants/routes";
 import NewBill from "../containers/NewBill.js";
+import { bills } from "../fixtures/bills.js";
 import NewBillUI from "../views/NewBillUI.js";
 
 jest.mock("../app/store", () => mockStore)
@@ -204,6 +207,57 @@ describe("Given I am connected as an employee", () => {
       newBillContainer.updateBill(bill)
       await waitFor(() => expect(consoleErrorSpy).toHaveBeenCalled())
       expect(consoleErrorSpy.mock.calls[0][0].message).toBe('500 Internal Server error')
+    })
+  })
+
+  describe("When I do fill fields in correct format and I click on submit button", () => {
+    test("Then the bill should be submitted with all form data and navigate to Bills page", async () => {
+      Object.defineProperty(window, 'localStorage', { value: localStorageMock })
+      window.localStorage.setItem('user', JSON.stringify({
+        type: 'Employee',
+        email: 'employee@test.com'
+      }))
+
+      const onNavigate = (pathname) => {
+        document.body.innerHTML = ROUTES({ pathname })
+      }
+
+      document.body.innerHTML = NewBillUI()
+
+      const newBill = new NewBill({
+        document,
+        onNavigate,
+        store: mockStore,
+        localStorage: window.localStorage,
+      })
+
+      const inputData = bills[0]
+      const newBillForm = screen.getByTestId("form-new-bill")
+      const handleSubmit = jest.spyOn(newBill, "handleSubmit")
+      const imageInput = screen.getByTestId("file")
+
+      const file = new File(["img"], inputData.fileName, {
+        type: "image/jpeg",
+      })
+
+      userEvent.selectOptions(screen.getByTestId("expense-type"), inputData.type)
+      userEvent.type(screen.getByTestId("expense-name"), inputData.name)
+      userEvent.type(screen.getByTestId("amount"), inputData.amount.toString())
+      userEvent.type(screen.getByTestId("datepicker"), inputData.date)
+      userEvent.type(screen.getByTestId("vat"), inputData.vat.toString())
+      userEvent.type(screen.getByTestId("pct"), inputData.pct.toString())
+      userEvent.type(screen.getByTestId("commentary"), inputData.commentary)
+      await userEvent.upload(imageInput, file)
+
+      newBill.fileName = file.name
+
+      const submitButton = screen.getByRole("button", { name: /Envoyer/i })
+      expect(submitButton.type).toBe("submit")
+
+      newBillForm.addEventListener("submit", handleSubmit)
+      userEvent.click(submitButton)
+
+      expect(handleSubmit).toHaveBeenCalledTimes(1)
     })
   })
 })
